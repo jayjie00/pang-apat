@@ -751,15 +751,14 @@ class StudentKiosk(QWidget):
             QMessageBox.warning(self, "Empty Cart", "Please add items first.")
             return
         
-        # Check what the user is doing
         if self.current_cat in ["Equipment", "Sound"]:
-            # If it's for BORROWING
-            self.fill_borrowers_form() # Fills the new table
-            self.pages.setCurrentIndex(6) # Opens the new form
+            self.fill_borrowers_form()
+            self.print_ris_btn.setText("PRINT BORROWER SLIP") # Update button text
+            self.pages.setCurrentIndex(6)
         else:
-            # If it's for SUPPLIES/PRINTING
-            self.fill_ris_form() # Fills the original RIS table
-            self.pages.setCurrentIndex(3) # Opens the original RIS form
+            self.fill_ris_form()
+            self.print_ris_btn.setText("PRINT RIS FORM NOW") # Update button text
+            self.pages.setCurrentIndex(3)
 
     def fill_borrowers_form(self):
         table = self.borrow_form_widget.table
@@ -1026,14 +1025,18 @@ class StudentKiosk(QWidget):
             self.grid_layout.addWidget(card, idx // 4, idx % 4)
 
     def handle_final_submit(self):
-        if self.pages.currentIndex() == 6: # Borrower's Form
-            # Save the Borrower PDF
-            self.save_form_to_pdf(self.borrow_form_widget, "BorrowerSlip")
-        else: # RIS Form
-            # Save the RIS PDF
-            self.save_form_to_pdf(self.ris_form_widget, "RIS_Slip")
-            
-        # Proceed to waiting screen...
+        # Determine names and purposes for the database based on the page
+        if self.pages.currentIndex() == 6:
+            student_name = self.borrow_form_widget.borrower_name.text().strip()
+            purpose = f"Room: {self.borrow_form_widget.room_no.text()} | Inst: {self.borrow_form_widget.instructor_name.text()}"
+        else:
+            student_name = self.ris_form_widget.name_requested_by.text().strip()
+            purpose = self.ris_form_widget.purpose_in.text().strip()
+
+        # Database logic (Example call)
+        # add_request(student_name, self.cart, purpose)
+
+        # JUST switch the page to the waiting screen
         self.pages.setCurrentIndex(4)
 
     def create_waiting_screen(self):
@@ -1099,7 +1102,6 @@ class StudentKiosk(QWidget):
         
     def process_ris_document(self):
         try:
-            # 1. SETUP THE DIRECTORY
             project_dir = os.path.dirname(os.path.abspath(__file__))
             output_dir = os.path.join(project_dir, "history_pdfs")
             if not os.path.exists(output_dir):
@@ -1107,8 +1109,8 @@ class StudentKiosk(QWidget):
 
             timestamp = QDateTime.currentDateTime().toString("yyyyMMdd_hhmmss")
             
-            # 2. SELECT THE TARGET AND DEFINE FILE PATH
-            if self.pages.currentIndex() == 6:
+            # --- SELECT TARGET ---
+            if self.pages.currentIndex() == 6 or self.current_cat in ["Equipment", "Sound"]:
                 target_widget = self.borrow_form_widget
                 file_name = f"BorrowerSlip_{timestamp}.pdf"
             else:
@@ -1117,44 +1119,58 @@ class StudentKiosk(QWidget):
             
             file_path = os.path.join(output_dir, file_name)
 
-            # 3. SETUP PRINTER
-            # Use HighResolution for crisp PDF text
+            # --- CLEAN UI FOR PRINTING ---
+            # 1. Hide the table's scrollbars so they don't appear in the PDF
+            if hasattr(target_widget, 'table'): # For Borrow Form
+                target_widget.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+                target_widget.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            if hasattr(target_widget, 'ris_table'): # For RIS Form
+                target_widget.ris_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+                target_widget.ris_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+            # 2. Setup the widget size
+            target_widget.setFixedWidth(850)
+            target_widget.adjustSize()
+
+            # --- PRINTING ---
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
             printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(file_path) # CRITICAL: Tells it where to save
+            printer.setOutputFileName(file_path)
             printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
-            printer.setPageOrientation(QPageLayout.Orientation.Portrait)
             
-            # 4. PREPARE THE WIDGET
-            target_widget.setStyleSheet("background-color: white; color: black;")
-            target_widget.setFixedWidth(850) # Keep width consistent for centering
-            target_widget.adjustSize() 
-
             painter = QPainter(printer)
-
-            # 5. SCALE AND CENTER
-            # Scale from screen DPI (96) to Printer DPI
             scale_factor = printer.logicalDpiX() / 96.0
             painter.scale(scale_factor, scale_factor)
 
-            # Horizontal centering math
+            # Centering
             page_rect = painter.viewport()
-            widget_width = target_widget.width()
-            
-            # Calculate center while accounting for the scale
-            x_centered = (page_rect.width() / scale_factor - widget_width) / 2
-            
-            painter.translate(x_centered, 40) # 40 is the top margin
+            x_centered = (page_rect.width() / scale_factor - 850) / 2
+            painter.translate(x_centered, 40)
 
-            # 6. RENDER AND FINISH
+            # --- DRAW THE OUTER BOX ---
+            # We draw a rectangle that matches the final size of the widget
+            pen = painter.pen()
+            pen.setWidth(2) # Thickness of the outer box
+            pen.setColor(QColor("black"))
+            painter.setPen(pen)
+            
+            # Draw the rectangle around the widget's area
+            painter.drawRect(0, 0, int(target_widget.width()), int(target_widget.height()))
+
+            # --- RENDER FORM ---
             target_widget.render(painter)
             painter.end()
 
-            QMessageBox.information(self, "Success", f"PDF Saved Successfully!\n{file_name}")
+            # --- RESTORE UI (Bring scrollbars back for the Kiosk screen) ---
+            if hasattr(target_widget, 'table'):
+                target_widget.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            if hasattr(target_widget, 'ris_table'):
+                target_widget.ris_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+            QMessageBox.information(self, "Success", f"Clean Form Saved:\n{file_name}")
 
         except Exception as e:
-            # Properly aligned Except block
-            QMessageBox.critical(self, "Error", f"An error occurred while saving: {str(e)}")
+            QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
             
 if __name__ == "__main__":
     app = QApplication(sys.argv)
