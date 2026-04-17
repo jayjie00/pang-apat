@@ -17,6 +17,105 @@ try:
 except ImportError:
     print("Error: database/db_manager.py not found. Please ensure your folder structure is correct.")
     
+class RISFormWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: white; color: black;")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(10)
+
+        # 1. Header Section
+        header = QLabel("COLEGIO DE MONTALBAN\nPROPERTY & SUPPLY OFFICE\nREQUISITION AND ISSUANCE SLIP")
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        layout.addWidget(header)
+        layout.addSpacing(20)
+
+        # 2. Top Info Fields (Division, Date, etc.)
+        top_grid = QGridLayout()
+        lbl_s = "font-weight: bold; font-size: 11px; color: black;"
+        in_s = "border: none; border-bottom: 1px solid black; color: black; background: transparent;"
+        
+        self.ris_div = QLineEdit("CDM"); self.ris_resp_center = QLineEdit(); self.ris_date = QLineEdit()
+        self.ris_office = QLineEdit(); self.ris_code = QLineEdit(); self.ris_no = QLineEdit()
+
+        top_grid.addWidget(QLabel("DIVISION:", styleSheet=lbl_s), 0, 0)
+        top_grid.addWidget(self.ris_div, 0, 1)
+        top_grid.addWidget(QLabel("RESPONSIBLE CENTER:", styleSheet=lbl_s), 0, 2)
+        top_grid.addWidget(self.ris_resp_center, 0, 3)
+        top_grid.addWidget(QLabel("DATE:", styleSheet=lbl_s), 0, 4)
+        top_grid.addWidget(self.ris_date, 0, 5)
+
+        top_grid.addWidget(QLabel("OFFICE:", styleSheet=lbl_s), 1, 0)
+        top_grid.addWidget(self.ris_office, 1, 1)
+        top_grid.addWidget(QLabel("CODE/CL # :", styleSheet=lbl_s), 1, 2)
+        top_grid.addWidget(self.ris_code, 1, 3)
+        top_grid.addWidget(QLabel("RIS NO:", styleSheet=lbl_s), 1, 4)
+        top_grid.addWidget(self.ris_no, 1, 5)
+
+        for w in [self.ris_div, self.ris_resp_center, self.ris_date, self.ris_office, self.ris_code, self.ris_no]:
+            w.setStyleSheet(in_s)
+            
+        layout.addLayout(top_grid)
+        layout.addSpacing(15)
+
+        # 3. Table (Matching the "Requisition" and "Issuance" sub-headers)
+        self.ris_table = QTableWidget(12, 6)
+        self.ris_table.setHorizontalHeaderLabels(["STOCK NO", "UNIT", "DESCRIPTION", "QTY (REQ)", "QTY (ISS)", "REMARKS"])
+        self.ris_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.ris_table.verticalHeader().setVisible(False)
+        self.ris_table.setStyleSheet("""
+            QTableWidget { gridline-color: black; border: 1.5px solid black; background-color: white; color: black; }
+            QHeaderView::section { background-color: white; color: black; border: 1px solid black; font-weight: bold; }
+        """)
+        layout.addWidget(self.ris_table)
+
+        # 4. Purpose Line
+        p_lay = QHBoxLayout()
+        self.purpose_in = QLineEdit(); self.purpose_in.setStyleSheet(in_s)
+        p_lay.addWidget(QLabel("PURPOSE:", styleSheet=lbl_s))
+        p_lay.addWidget(self.purpose_in)
+        layout.addLayout(p_lay)
+        layout.addSpacing(20)
+
+        # 5. THE FOUR SIGNATURE COLUMNS (Requested, Approved, Issued, Received)
+        sig_container = QGridLayout()
+        sig_container.setSpacing(20)
+        
+        self.sig_inputs = {} # To store the name widgets for handle_final_submit
+        sections = ["Requested By:", "Approved By:", "Issued By:", "Received By:"]
+        
+        for i, title in enumerate(sections):
+            # Title Label
+            t_lbl = QLabel(title)
+            t_lbl.setStyleSheet("font-weight: bold; text-decoration: underline; font-size: 11px;")
+            sig_container.addWidget(t_lbl, 0, i)
+            
+            # Input Fields
+            name_in = QLineEdit(); name_in.setPlaceholderText("Printed Name")
+            sig_in = QLineEdit(); sig_in.setPlaceholderText("Signature")
+            date_in = QLineEdit(); date_in.setPlaceholderText("Date")
+            
+            for w in [name_in, sig_in, date_in]: w.setStyleSheet(in_s)
+            
+            sig_container.addWidget(name_in, 1, i)
+            sig_container.addWidget(sig_in, 2, i)
+            sig_container.addWidget(date_in, 3, i)
+            
+            # Save the "Requested By" name to use in the database submission
+            if title == "Requested By:":
+                self.name_requested_by = name_in
+
+        layout.addLayout(sig_container)
+
+        # 6. Bottom Office Stamp
+        office_label = QLabel("___________________________\nPROPERTY & SUPPLY OFFICE")
+        office_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        office_label.setStyleSheet("font-weight: bold; font-size: 11px;")
+        layout.addWidget(office_label)
+        
+        layout.addStretch()
 class BorrowersFormWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -257,7 +356,6 @@ class StudentKiosk(QWidget):
         """)
         msg.exec()
 
-    # --- PAGE 1: CATEGORY SELECTION (Left/Right Split) ---
     # --- PAGE 1: CATEGORY SELECTION (Side-by-Side & Centered Middle) ---
     def create_category_screen(self):
         page = QWidget()
@@ -472,6 +570,7 @@ class StudentKiosk(QWidget):
                 l.addStretch()
                 l.addWidget(rem)
                 cart_container.addWidget(f)
+                
     def create_borrow_form_page(self):
         page = QWidget(); lay = QVBoxLayout(page); lay.setContentsMargins(0,0,0,0)
         lay.addWidget(self.create_top_bar("BORROWER'S FORM", 2))
@@ -639,6 +738,28 @@ class StudentKiosk(QWidget):
             table.setItem(row, 3, QTableWidgetItem(now))
             for c in range(6): 
                 if table.item(row, c): table.item(row, c).setForeground(QColor("black"))
+                
+    def fill_ris_form(self):
+        """Populates the RIS table with items from the student's cart."""
+        # We look inside the ris_form_widget to find the table named 'ris_table'
+        table = self.ris_form_widget.ris_table 
+        table.setRowCount(0)
+        
+        for name, qty in self.cart.items():
+            row = table.rowCount()
+            table.insertRow(row)
+            
+            # Column 2: ITEM DESCRIPTION
+            table.setItem(row, 2, QTableWidgetItem(name))
+            
+            # Column 3: REQ QTY (Requisition Quantity)
+            table.setItem(row, 3, QTableWidgetItem(str(qty)))
+            
+            # Ensure text is black so it is visible on the white form
+            for column in range(6):
+                item = table.item(row, column)
+                if item:
+                    item.setForeground(QColor("black"))
                 
     def handle_borrow_submit(self):
         # 1. Get the data from the new fields
@@ -817,115 +938,20 @@ class StudentKiosk(QWidget):
     # --- FORM & GRID REFRESH ---
     def create_ris_form_page(self):
         page = QWidget()
-        page.setStyleSheet("background-color: white; color: black;")
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.create_top_bar("REQUISITION & ISSUANCE SLIP", 2))
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0,0,0,0)
+        lay.addWidget(self.create_top_bar("REQUISITION & ISSUANCE SLIP", 2))
         
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("border: none;")
-        container = QWidget()
-        container.setStyleSheet("background-color: white;")
-        c_lay = QVBoxLayout(container)
-        c_lay.setContentsMargins(20, 10, 20, 20)
+        self.ris_form_widget = RISFormWidget() # Using the new class
+        scroll.setWidget(self.ris_form_widget)
         
-        # Printable RIS form container (excludes submit button)
-        self.ris_form_widget = QWidget()
-        self.ris_form_widget.setStyleSheet("background-color: white;")
-        self.ris_form_widget.setObjectName("ris_form_widget")
-        self.ris_form_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        form_lay = QVBoxLayout(self.ris_form_widget)
-        form_lay.setContentsMargins(30, 30, 30, 30)
+        submit_btn = QPushButton("SUBMIT REQUEST  ➡")
+        submit_btn.setStyleSheet("background-color: #1B4D2E; color: white; padding: 15px; font-weight: bold; border-radius: 25px;")
+        submit_btn.clicked.connect(self.handle_final_submit)
         
-        title_label = QLabel("REQUISITION & ISSUANCE SLIP")
-        title_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
-        title_label.setStyleSheet("color: black; padding-bottom: 10px;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        form_lay.addWidget(title_label)
-        
-        lbl_s = "background-color: #1B4D2E; color: white; padding: 4px; font-weight: bold; font-size: 11px;"
-        in_s = "background-color: #E0E4D9; color: black; border-radius: 12px; padding: 5px; border: 1px solid #1B4D2E;"
-        
-        # Top section with 2 rows of 3 fields each
-        top_grid = QGridLayout()
-        top_grid.setSpacing(10)
-        self.ris_div = QLineEdit("CDM"); self.ris_resp_center = QLineEdit(); self.ris_office = QLineEdit()
-        self.ris_code = QLineEdit(); self.ris_date = QLineEdit("2026-04-09"); self.ris_no = QLineEdit()
-        
-        fields = [("DIVISION:", self.ris_div, 0, 0), ("RESPONSIBLE CENTER:", self.ris_resp_center, 0, 2), 
-                  ("DATE:", self.ris_date, 0, 4), ("OFFICE:", self.ris_office, 1, 0), 
-                  ("CODE/CL # :", self.ris_code, 1, 2), ("RIS NO:", self.ris_no, 1, 4)]
-        
-        for txt, w, r, c in fields:
-            l = QLabel(txt); l.setStyleSheet(lbl_s); w.setStyleSheet(in_s)
-            top_grid.addWidget(l, r, c); top_grid.addWidget(w, r, c+1)
-            
-        form_lay.addLayout(top_grid)
-        form_lay.addSpacing(15)
-        
-        # Table section
-        self.ris_table = QTableWidget(0, 6)
-        self.ris_table.setHorizontalHeaderLabels(["STOCK NO", "UNIT", "DESCRIPTION", "REQ QTY", "ISS QTY", "REMARKS"])
-        self.ris_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.ris_table.setStyleSheet("QHeaderView::section { background-color: #1B4D2E; color: white; border: 1px solid white; }")
-        self.ris_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        table_container = QWidget()
-        table_container_layout = QVBoxLayout(table_container)
-        table_container_layout.setContentsMargins(0, 0, 0, 0)
-        table_container_layout.addWidget(self.ris_table)
-        
-        form_lay.addWidget(table_container)
-        form_lay.addSpacing(15)
-        
-        # Purpose section
-        purpose_layout = QHBoxLayout()
-        purpose_label = QLabel("PURPOSE:")
-        purpose_label.setStyleSheet(lbl_s)
-        self.purpose_in = QLineEdit()
-        self.purpose_in.setStyleSheet(in_s)
-        purpose_layout.addWidget(purpose_label)
-        purpose_layout.addWidget(self.purpose_in)
-        form_lay.addLayout(purpose_layout)
-        form_lay.addSpacing(15)
-        
-        # Signature section - 4 columns, 3 rows
-        self.sig_widgets = {}
-        sections = ["REQUESTED BY:", "APPROVED BY:", "ISSUED BY:", "RECEIVED BY:"]
-        row_labels = ["NAME:", "DATE:", "SIGNATURE:"]
-        
-        bot_grid = QGridLayout()
-        bot_grid.setSpacing(10)
-        
-        # Header row for sections
-        for i, text in enumerate(sections):
-            lbl = QLabel(text); lbl.setStyleSheet(lbl_s); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            bot_grid.addWidget(lbl, 0, i+1)
-            
-        # Data rows
-        for r, txt in enumerate(row_labels):
-            label = QLabel(txt)
-            label.setStyleSheet("color: black; font-weight: bold;")
-            bot_grid.addWidget(label, r+1, 0)
-            
-            for c in range(4):
-                w = QLineEdit()
-                w.setStyleSheet(in_s)
-                bot_grid.addWidget(w, r+1, c+1)
-                self.sig_widgets[f"{txt}_{sections[c]}"] = w
-        
-        form_lay.addLayout(bot_grid)
-        form_lay.addStretch()
-        
-        next_b = QPushButton("SUBMIT REQUEST  ➡")
-        next_b.setStyleSheet("background-color: #1B4D2E; color: white; font-weight: bold; padding: 15px; border-radius: 25px;")
-        next_b.clicked.connect(self.handle_final_submit)
-        
-        c_lay.addWidget(self.ris_form_widget)
-        c_lay.addSpacing(20); c_lay.addWidget(next_b)
-        
-        scroll.setWidget(container); layout.addWidget(scroll)
+        lay.addWidget(scroll); lay.addWidget(submit_btn)
         return page
 
     def refresh_grid(self):
