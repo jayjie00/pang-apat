@@ -22,38 +22,95 @@ class BorrowersFormWidget(QWidget):
         super().__init__(parent)
         self.setStyleSheet("background-color: white; color: black;")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(10)
 
+        # --- HEADER ---
         header = QLabel("COLEGIO DE MONTALBAN\nPROPERTY AND SUPPLY OFFICE\n\nBORROWER'S FORM")
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        header.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         layout.addWidget(header)
         layout.addSpacing(20)
 
-        self.table = QTableWidget(8, 6)
+        # --- TABLE ---
+        self.table = QTableWidget(10, 6)
         self.table.setHorizontalHeaderLabels(["QTY.", "ITEM DESCRIPTION", "PURPOSE", "DATE/TIME\nBORROWED", "DATE/TIME\nRETURNED", "REMARKS"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setStyleSheet("QTableWidget { gridline-color: black; border: 1px solid black; color: black; }")
+        self.table.verticalHeader().setVisible(False)
+        self.table.setStyleSheet("""
+            QTableWidget { gridline-color: black; border: 1.5px solid black; background-color: white; color: black; }
+            QHeaderView::section { background-color: white; color: black; border: 1px solid black; font-weight: bold; }
+        """)
         layout.addWidget(self.table)
+        layout.addSpacing(30)
 
-        footer_grid = QGridLayout()
-        self.borrower_name = QLineEdit(); self.room_no = QLineEdit(); self.instructor_name = QLineEdit()
-        lbl_s = "font-weight: bold; color: black;"
-        in_s = "border: none; border-bottom: 2px solid black; color: black;"
+        # --- FOOTER SECTION (Names, Signatures, Note) ---
+        footer_container = QVBoxLayout()
+        footer_container.setSpacing(15)
 
-        footer_grid.addWidget(QLabel("NAME OF BORROWER:", styleSheet=lbl_s), 0, 0)
-        footer_grid.addWidget(self.borrower_name, 0, 1)
-        self.borrower_name.setStyleSheet(in_s)
-        footer_grid.addWidget(QLabel("ROOM NO:", styleSheet=lbl_s), 0, 2)
-        footer_grid.addWidget(self.room_no, 0, 3)
-        self.room_no.setStyleSheet(in_s)
-        footer_grid.addWidget(QLabel("NAME OF INSTRUCTOR:", styleSheet=lbl_s), 1, 0)
-        footer_grid.addWidget(self.instructor_name, 1, 1)
-        self.instructor_name.setStyleSheet(in_s)
+        lbl_style = "font-weight: bold; font-size: 13px; color: black;"
+        in_style = "background: transparent; border: none; border-bottom: 1.5px solid black; color: black; padding: 2px;"
+
+        # Row 1: Borrower Name and Room No
+        row1 = QHBoxLayout()
+        self.borrower_name = QLineEdit()
+        self.room_no = QLineEdit()
         
-        layout.addLayout(footer_grid)
+        row1.addWidget(QLabel("NAME OF BORROWER:", styleSheet=lbl_style))
+        row1.addWidget(self.borrower_name, 3)
+        self.borrower_name.setStyleSheet(in_style)
+        
+        row1.addSpacing(30)
+        
+        row1.addWidget(QLabel("ROOM NO:", styleSheet=lbl_style))
+        row1.addWidget(self.room_no, 1)
+        self.room_no.setStyleSheet(in_style)
+        footer_container.addLayout(row1)
+
+        # Row 2: Borrower Signature Line (Directly below Borrower Name)
+        row2 = QHBoxLayout()
+        self.borrower_sig = QLineEdit()
+        row2.addWidget(QLabel("SIGNATURE:", styleSheet=lbl_style))
+        row2.addWidget(self.borrower_sig, 1)
+        self.borrower_sig.setStyleSheet(in_style)
+        row2.addStretch(1) # Keeps the line from stretching to the right edge
+        footer_container.addLayout(row2)
+
+        # Row 3: Instructor Name
+        row3 = QHBoxLayout()
+        self.instructor_name = QLineEdit()
+        row3.addWidget(QLabel("NAME OF INSTRUCTOR:", styleSheet=lbl_style))
+        row3.addWidget(self.instructor_name, 1)
+        self.instructor_name.setStyleSheet(in_style)
+        row3.addStretch(1)
+        footer_container.addLayout(row3)
+
+        # Row 4: Instructor Signature Line (Directly below Instructor Name)
+        row4 = QHBoxLayout()
+        self.instructor_sig = QLineEdit()
+        row4.addWidget(QLabel("SIGNATURE:", styleSheet=lbl_style))
+        row4.addWidget(self.instructor_sig, 1)
+        self.instructor_sig.setStyleSheet(in_style)
+        row4.addStretch(1)
+        footer_container.addLayout(row4)
+
+        # Add the "PROPERTY & SUPPLY OFFICE" right-aligned text
+        layout.addLayout(footer_container)
+        layout.addSpacing(20)
+
+        office_tag = QLabel("___________________________\nPROPERTY & SUPPLY OFFICE")
+        office_tag.setAlignment(Qt.AlignmentFlag.AlignRight)
+        office_tag.setStyleSheet("font-weight: bold; font-size: 13px;")
+        layout.addWidget(office_tag)
+
+        # The Bottom Note
+        note = QLabel("\nNOTE: The instructor shall receive the items and need to sign the borrower's form. "
+                      "Releasing and returning items within school days ONLY from 8:00 am to 5:00 pm.")
+        note.setStyleSheet("font-size: 11px; font-style: italic; color: black;")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
         layout.addStretch()
-        
 class StudentKiosk(QWidget):
     def __init__(self):
         super().__init__()
