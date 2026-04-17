@@ -232,7 +232,7 @@ class StudentKiosk(QWidget):
         self.pages.addWidget(self.create_ris_form_page())       # Index 3
         self.pages.addWidget(self.create_waiting_screen())      # Index 4
         self.pages.addWidget(self.create_printing_sub_screen()) # Index 5
-        self.pages.addWidget(self.create_borrow_form_page()) # This becomes Index 6
+        self.pages.addWidget(self.create_borrow_form_page()) # Index 6
 
         self.main_layout.addWidget(self.pages)
 
@@ -691,6 +691,40 @@ class StudentKiosk(QWidget):
         
         lay.addLayout(main_content)
         return page
+    def save_form_to_pdf(self, form_widget, filename_prefix):
+        # 1. Create the 'history_pdfs' folder if it doesn't exist
+        project_dir = os.path.dirname(os.path.abspath(__file__))
+        output_dir = os.path.join(project_dir, "history_pdfs")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # 2. Setup the filename with a timestamp
+        timestamp = QDateTime.currentDateTime().toString("yyyyMMdd_hhmmss")
+        file_path = os.path.join(output_dir, f"{filename_prefix}_{timestamp}.pdf")
+
+        # 3. Initialize the PDF Writer
+        pdf_writer = QPdfWriter(file_path)
+        # Set to A5 or Letter depending on your paper size
+        pdf_writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        pdf_writer.setPageOrientation(QPageLayout.Orientation.Portrait)
+        
+        # 4. Use QPainter to draw the widget onto the PDF
+        painter = QPainter(pdf_writer)
+        
+        # CALCULATE SCALING (Important for High-Resolution PDF)
+        # This prevents the PDF from looking tiny or blurry
+        target_rect = painter.viewport()
+        scale = pdf_writer.logicalDpiX() / 96.0 # Scale based on screen DPI
+        painter.scale(scale, scale)
+
+        # 5. RENDER THE FORM
+        # This captures your 'BorrowersFormWidget' or 'RISFormWidget' exactly
+        form_widget.render(painter)
+        
+        painter.end()
+    
+        print(f"PDF Saved: {file_path}")
+        return file_path
 
     def select_print_type(self, clicked_button):
         for btn in self.print_buttons:
@@ -992,49 +1026,15 @@ class StudentKiosk(QWidget):
             self.grid_layout.addWidget(card, idx // 4, idx % 4)
 
     def handle_final_submit(self):
-        # 1. Check if we are currently on the Borrow Page (Index 6)
-        if self.pages.currentIndex() == 6:
-            borrower = self.borrow_form_widget.borrower_name.text().strip()
-            instructor = self.borrow_form_widget.instructor_name.text().strip()
-            room = self.borrow_form_widget.room_no.text().strip()
+        if self.pages.currentIndex() == 6: # Borrower's Form
+            # Save the Borrower PDF
+            self.save_form_to_pdf(self.borrow_form_widget, "BorrowerSlip")
+        else: # RIS Form
+            # Save the RIS PDF
+            self.save_form_to_pdf(self.ris_form_widget, "RIS_Slip")
             
-            # Get purpose from the first row of the table (column index 2)
-            table = self.borrow_form_widget.table
-            purpose_item = table.item(0, 2)
-            table_purpose = purpose_item.text().strip() if purpose_item else ""
-
-            # NEW VALIDATION FOR BORROWING
-            if not borrower or not instructor or not room or not table_purpose:
-                QMessageBox.warning(self, "Required Fields", 
-                                    "Please fill in Borrower Name, Instructor, Room No, and Purpose in the table.")
-                return
-            
-            student_name = borrower
-            final_purpose = f"Room: {room} | Inst: {instructor} | Purpose: {table_purpose}"
-        
-        else:
-            # THIS IS YOUR OLD RIS LOGIC (Keep it for supplies)
-            name_widget = self.sig_widgets.get("NAME:_REQUESTED BY:")
-            student_name = name_widget.text().strip()
-            purpose_val = self.purpose_in.text().strip()
-            
-            if not student_name or not purpose_val:
-                QMessageBox.warning(self, "Error", "Please fill in Name and Purpose.")
-                return
-            student_name = student_name
-            final_purpose = purpose_val
-
-        # --- DATABASE SUBMISSION (The same for both) ---
-        final_cart_with_ids = {}
-        for item_name, qty in self.cart.items():
-            brand = self.cart_brands.get(item_name, "")
-            asset_id = get_available_asset_id(item_name, brand)
-            display_name = f"{item_name} [ID: {asset_id}]" if asset_id != "N/A" else item_name
-            final_cart_with_ids[display_name] = qty
-
-        add_request(student_name, final_cart_with_ids, final_purpose)
-        self.pages.setCurrentIndex(4) # Go to Waiting Screen
-        QTimer.singleShot(5000, self.reset_to_start)
+        # Proceed to waiting screen...
+        self.pages.setCurrentIndex(4)
 
     def create_waiting_screen(self):
         page = QFrame(); page.setStyleSheet("background-color: #1B4D2E;"); lay = QVBoxLayout(page)
@@ -1098,68 +1098,64 @@ class StudentKiosk(QWidget):
         else: self.refresh_grid(); self.pages.setCurrentIndex(2)
         
     def process_ris_document(self):
-        # --- PART 1: SAVE PDF TO HISTORY FOLDER ---
-        # Get path to the history folder inside your project
-        project_dir = os.path.dirname(os.path.abspath(__file__))
-        history_dir = os.path.join(project_dir, "history_pdfs")
-        
-        if not os.path.exists(history_dir):
-            os.makedirs(history_dir)
+        try:
+            # 1. SETUP THE DIRECTORY
+            project_dir = os.path.dirname(os.path.abspath(__file__))
+            output_dir = os.path.join(project_dir, "history_pdfs")
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
 
-        # Name the file with a timestamp to make it unique in history
-        timestamp = QDateTime.currentDateTime().toString("yyyyMMdd_hhmmss")
-        file_path = os.path.join(history_dir, f"RIS_{timestamp}.pdf")
+            timestamp = QDateTime.currentDateTime().toString("yyyyMMdd_hhmmss")
+            
+            # 2. SELECT THE TARGET AND DEFINE FILE PATH
+            if self.pages.currentIndex() == 6:
+                target_widget = self.borrow_form_widget
+                file_name = f"BorrowerSlip_{timestamp}.pdf"
+            else:
+                target_widget = self.ris_form_widget
+                file_name = f"RIS_Slip_{timestamp}.pdf"
+            
+            file_path = os.path.join(output_dir, file_name)
 
-        # Create PDF via render (high quality) - captures the actual form with user inputs
-        pdf_writer = QPdfWriter(file_path)
-        pdf_writer.setPageSize(QPageSize(QPageSize.PageSizeId.A5))
-        pdf_writer.setPageOrientation(QPageLayout.Orientation.Landscape)
-        
-        painter_pdf = QPainter(pdf_writer)
-        ris_page = self.ris_form_widget
-        ris_page.adjustSize()
-        
-        # Scaling for PDF
-        scale_pdf = pdf_writer.logicalDpiX() / 96.0
-        painter_pdf.scale(scale_pdf, scale_pdf)
-        ris_page.render(painter_pdf)
-        painter_pdf.end()
+            # 3. SETUP PRINTER
+            # Use HighResolution for crisp PDF text
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(file_path) # CRITICAL: Tells it where to save
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+            printer.setPageOrientation(QPageLayout.Orientation.Portrait)
+            
+            # 4. PREPARE THE WIDGET
+            target_widget.setStyleSheet("background-color: white; color: black;")
+            target_widget.setFixedWidth(850) # Keep width consistent for centering
+            target_widget.adjustSize() 
 
-        # --- PART 2: AUTOMATIC PRINTING ---
-        # Setup printer for physical output
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A5))
-        printer.setPageOrientation(QPageLayout.Orientation.Landscape)
-        
-        # This opens the dialog so the user can select the actual printer
-        print_dialog = QPrintDialog(printer, self)
-        if print_dialog.exec() == QPrintDialog.DialogCode.Accepted:
-            # Re-apply the A5 Landscape settings after dialog closes to ensure they take effect
-            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A5))
-            printer.setPageOrientation(QPageLayout.Orientation.Landscape)
-            
-            painter_print = QPainter(printer)
-            
-            # Capture the printable RIS form widget with user inputs
-            ris_page.adjustSize()
-            pixmap = ris_page.grab()
-            
-            # Fit to paper
-            rect = painter_print.viewport()
-            size = pixmap.size()
-            size.scale(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
-            painter_print.setViewport(rect.x(), rect.y(), size.width(), size.height())
-            painter_print.setWindow(pixmap.rect())
-            
-            painter_print.drawPixmap(0, 0, pixmap)
-            painter_print.end()
+            painter = QPainter(printer)
 
-            QMessageBox.information(self, "Success", 
-                f"RIS Form saved to history and sent to printer.\nFile: {os.path.basename(file_path)}")
-            
-            self.print_ris_btn.setEnabled(False)
-            self.print_ris_btn.setText("RIS PROCESSED")
+            # 5. SCALE AND CENTER
+            # Scale from screen DPI (96) to Printer DPI
+            scale_factor = printer.logicalDpiX() / 96.0
+            painter.scale(scale_factor, scale_factor)
 
+            # Horizontal centering math
+            page_rect = painter.viewport()
+            widget_width = target_widget.width()
+            
+            # Calculate center while accounting for the scale
+            x_centered = (page_rect.width() / scale_factor - widget_width) / 2
+            
+            painter.translate(x_centered, 40) # 40 is the top margin
+
+            # 6. RENDER AND FINISH
+            target_widget.render(painter)
+            painter.end()
+
+            QMessageBox.information(self, "Success", f"PDF Saved Successfully!\n{file_name}")
+
+        except Exception as e:
+            # Properly aligned Except block
+            QMessageBox.critical(self, "Error", f"An error occurred while saving: {str(e)}")
+            
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     k = StudentKiosk()
