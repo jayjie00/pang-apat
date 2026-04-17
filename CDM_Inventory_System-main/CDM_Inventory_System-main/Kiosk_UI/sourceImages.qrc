@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RCC>
+    <qresource prefix="images">
+        <file>icons/ofcSchoolSupplyIcon.jpg</file>
+        <file>icons/plugIcon.jpg</file>
+        <file>icons/printerIcon.jpg</file>
+        <file>icons/soundIcon.jpg</file>
+    </qresource>
+</RCC>
